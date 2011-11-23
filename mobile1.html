@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<!--
+Copyright (c) 2011, salesforce.com, inc.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided
+that the following conditions are met:
+
+Redistributions of source code must retain the above copyright notice, this list of conditions and the
+ following disclaimer.
+
+Redistributions in binary form must reproduce the above copyright notice, this list of conditions and
+the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+Neither the name of salesforce.com, inc. nor the names of its contributors may be used to endorse or
+promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+-->
+<!-- 7.28 ranchi
+Sample HTML page showing use of Force.com JavaScript REST Toolkit from
+an HTML5 mobile app using jQuery Mobile
+-->
+<html>
+<head>
+<title>Contacts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<!--
+    For development, you may want to load jQuery/jQuery Mobile from their CDN.
+-->
+<link rel="stylesheet" href="jquery.mobile-1.0a4.min.css"/>
+<script type="text/javascript" src="jquery-1.5.2.min.js"></script>
+
+<!--
+From jQuery-swip - http://code.google.com/p/jquery-swip/source/browse/trunk/jquery.popupWindow.js
+-->
+<script type="text/javascript" src="jquery.popup1.js"></script>
+<script type="text/javascript" src="jquery.mobile-1.0a4.min.js"></script>
+<script type="text/javascript" src="forcetk.js"></script>
+<script type="text/javascript" src="mobileapp1.js"></script>
+<script type="text/javascript" src="mobileapp3.js"></script>
+<script type="text/javascript" src="mobileapp.js"></script>
+<script type="text/javascript">
+// OAuth Configuration
+var loginUrl    = 'https://login.salesforce.com/';
+var clientId    = '3MVG9Y6d_Btp4xp72jLeYDJ0QLLxnqd8FFMqy.ySW0MlRHIvAkGbNM4q5cqkmBckcMo5yPg5swjVH6jr7.8.Z';
+var redirectUri = 'http://localhost/vo6/oauthcallback.html';
+var proxyUrl    = 'http://localhost/vo6/proxy.php?mode=native';
+
+// We'll get an instance of the REST API client in a callback after we do
+// OAuth
+var client = new forcetk.Client(clientId, loginUrl, proxyUrl);;
+
+// We use $j rather than $ for jQuery
+if (window.$j === undefined) {
+    $j = $;
+}
+
+$j(document).ready(function() {
+	$j('#login').popupWindow({
+		windowURL: getAuthorizeUrl(loginUrl, clientId, redirectUri),
+		windowName: 'Connect',
+		centerBrowser: 1,
+		height:480,
+		width:320
+	});
+});
+
+function getAuthorizeUrl(loginUrl, clientId, redirectUri){
+    return loginUrl+'services/oauth2/authorize?display=touch'
+        +'&response_type=token&client_id='+escape(clientId)
+        +'&redirect_uri='+escape(redirectUri);
+}
+
+function sessionCallback(oauthResponse) {
+    if (typeof oauthResponse === 'undefined'|| typeof oauthResponse['access_token'] === 'undefined') {
+        //$j('#prompt').html('Error - unauthorized!');
+        errorCallback({
+            status: 0,
+            statusText: 'Unauthorized',
+            responseText: 'No OAuth response'
+        });
+    } else {
+        client.setSessionToken(oauthResponse.access_token, null,oauthResponse.instance_url);
+		   $j.mobile.changePage('#mainpage',"slide",false,true);
+		   
+		   addClickListenerscontact();
+		   getContacts(function(){
+	       $j.mobile.pageLoading(true);
+	       });
+		   addClickListeners();
+		   getAccounts(function(){
+	       $j.mobile.pageLoading(true);
+	       });
+		   addClickListenersquote();
+		   getQuotes(function(){
+	       $j.mobile.pageLoading(true);
+	       });
+	      
+    }
+}
+  </script>
+</head>
+
+<body>
+	<div data-role="page" data-theme="b" id="loginpage">
+
+	    <div data-role="header">
+	        <h1>Salesforce Login</h1>
+	    </div>
+	    <div data-role="content">
+	        <form>
+	            <button data-role="button" id="login">Login</button>
+	        </form>
+	    </div>
+	    <div data-role="footer">
+	        <h4>Force.com</h4>
+	    </div>
+	</div>
+	<div data-role="page" data-theme="b" id="mainpage">
+	    <div data-role="header">
+	        <h1>Select</h1>
+	    </div>
+	    <div data-role="content">
+	        <form>
+			    <center><a href="#mainpagecontact">Contacts</a></center></br></br>
+				<center><a href="#mainpageaccount">Accounts</a></center></br></br>
+				<center><a href="#mainpagequote">Quotes</a></center></br></br>
+		   </form>
+	    </div>
+	 </div>
+	<div data-role="page" data-theme="b" id="mainpagecontact">
+	    <div data-role="header">
+		<h1>Contact List</h1>
+	</div>
+	    <div data-role="content">
+	        <form>
+	            <button data-role="button" id="newbtncontact">New</button>
+	        </form>
+	        <ul id="contactlist" data-inset="true" data-role="listview" data-theme="c" data-dividertheme="b">
+	        </ul>
+	    </div>
+	    <div data-role="footer">
+	        <h4>Force.com</h4>
+	    </div>
+	</div>
+	<div data-role="page" data-theme="b" id="detailpagecontact">
+	    <div data-role="header">
+	        <h1>Contact Detail</h1>
+	    </div>
+	    <div data-role="content">
+	        <table>
+	            <tr><td>Contact First Name:</td><td id="FirstName"></td></tr>
+				<tr><td>Contact Last Name:</td><td id="LastName"></td></tr>
+	            <tr><td>Email:</td><td id="Email"></td></tr>
+	            <tr><td>Phone:</td><td id="Phone"></td></tr>
+		   </table>
+	            <form name="contactdetail" id="contactdetail">
+		        <input type="hidden" name="Id" id="Id" />
+	            <button data-role="button" id="editbtncontact">Edit Contact</button>
+	            <button data-role="button" id="deletebtncontact" data-icon="delete" data-theme="e">Delete</button>
+	        </form>
+	    </div>
+	    <div data-role="footer">
+	        <h4>Force.com</h4>
+	    </div>
+	</div>
+	<div data-role="page" data-theme="b" id="editpagecontact">
+	    <div data-role="header">
+	        <h1 id="contactformheader">New Contact</h1>
+	    </div>
+	    <div data-role="content">
+	        <form name="contactform" id="contactform">
+	            <input type="hidden" name="Id" id="Id" />
+				<table>
+	                <tr>
+						<td>Contact First Name:</td>
+						<td><input name="FirstName" id="FirstName" data-theme="c"/></td>
+					</tr>
+	                <tr>
+						<td>Contact Last Name:</td>
+						<td><input name="LastName" id="LastName" data-theme="c"/></td>
+					</tr>
+					<tr>
+						<td>Email:</td>
+						<td><input name="Email" id="Email" data-theme="c"/></td>
+					</tr>
+	                <tr>
+						<td>Phone:</td>
+						<td><input name="Phone" id="Phone" data-theme="c"/></td>
+					</tr>
+	            </table>
+	         <button data-role="button" id="actionbtncontact">Action contact</button>
+	        </form>
+	    </div>
+	    <div data-role="footer">
+	        <h4>Force.com</h4>
+	    </div>
+	</div>
+<!-------------------------------------------------------------------------------->	
+	<div data-role="page" data-theme="b" id="mainpageaccount">
+	    <div data-role="header">
+	        <h1>Account List</h1>
+	    </div>
+	    <div data-role="content">
+	        <form>
+	            <button data-role="button" id="newbtnaccount">New Account</button>
+	        </form>
+	        <ul id="accountlist" data-inset="true" data-role="listview" data-theme="c" data-dividertheme="b">
+	        </ul>
+	    </div>
+	    <div data-role="footer">
+	        <h4>Force.com</h4>
+	    </div>
+	</div>
+	<div data-role="page" data-theme="b" id="detailpageaccount">
+	    <div data-role="header">
+	        <h1>Account Detail</h1>
+	    </div>
+	    <div data-role="content">
+	            <form name="accountdetail" id="accountdetail">
+				<table>
+	            <tr><td>Account Name:</td><td id="Name"></td></tr>
+	            <tr><td>Industry:</td><td id="Industry"></td></tr>
+	            <tr><td>Ticker Symbol:</td><td id="TickerSymbol"></td></tr>
+	            <input type="hidden" name="Id" id="accId"/>
+				</table>
+				<button data-role="button" id="editbtnaccount">Edit Account</button>
+	            <button data-role="button" id="deletebtnaccount" data-icon="delete" data-theme="e">Delete</button>
+	        </form>
+	    </div>
+	    <div data-role="footer">
+	        <h4>Force.com</h4>
+	    </div>
+	</div>
+	<div data-role="page" data-theme="b" id="editpage">
+	    <div data-role="header">
+	        <h1 id="accformheader">New Account</h1>
+	    </div>
+	    <div data-role="content">
+	        <form name="accountform" id="accountform">
+	            <input type="hidden" name="Id" id="formId"/>
+	            <table>
+	                <tr>
+						<td>Account Name:</td>
+						<td><input name="Name" id="Name" data-theme="c"/></td>
+					</tr>
+	                <tr>
+						<td>Industry:</td>
+						<td><input name="Industry" id="Industry" data-theme="c"/></td>
+					</tr>
+	                <tr>
+						<td>Ticker Symbol:</td>
+						<td><input name="TickerSymbol" id="TickerSymbol" data-theme="c"/></td>
+					</tr>
+	            </table>
+	            <button data-role="button" id="actionbtn">Action</button>
+	        </form>
+	    </div>
+	    <div data-role="footer">
+	        <h4>Force.com</h4>
+	    </div>
+	</div>
+<!-------------------------------------------------------------------------------->
+<div data-role="page" data-theme="b" id="mainpagequote">
+	    <div data-role="header">
+	        <h1>Quote List</h1>
+		</div>
+	    <div data-role="content">
+	        <form>
+	            <button data-role="button" id="newbtnquote">New Quote</button>
+	        </form>
+	        <ul id="quotelist" data-inset="true" data-role="listview" data-theme="c" data-dividertheme="b">
+	        </ul>
+	    </div>
+	    <div data-role="footer">
+	        <h4>Force.com</h4>
+	    </div>
+	</div>
+	<div data-role="page" data-theme="b" id="detailpagequote">
+	    <div data-role="header">
+	        <h1>Quote Detail</h1>
+	    </div>
+	    <div data-role="content">
+	        <table>
+	            <tr><td>Quote Name:</td><td id="qName"></td></tr>
+				<tr><td>Quote Status:</td><td id="invoiceit_s__Status__c"></td></tr>
+	            <tr><td>Quote Total:</td><td id="invoiceit_s__Total__c"></td></tr>
+	        </table>
+	            <form name="quotedetail" id="quotedetail">
+		        <input type="hidden" name="Id" id="quoteId" />
+	            <button data-role="button" id="editbtnquote">Edit Quote</button>
+	            <button data-role="button" id="deletebtnquote" data-icon="delete" data-theme="e">Delete Quote</button>
+	        </form>
+	    </div>
+	    <div data-role="footer">
+	        <h4>Force.com</h4>
+	    </div>
+	</div>
+	<div data-role="page" data-theme="b" id="editpagequote">
+	    <div data-role="header">
+	        <h1 id="quoteformheader">New quote</h1>
+	    </div>
+	    <div data-role="content">
+	        <form name="quoteform" id="quoteform">
+	            <input type="hidden" name="Id" id="qId" />
+				<table>
+	                <tr>
+						<td>Quote Name:</td>
+						<td><input name="Name" id="quName" data-theme="c"/></td>
+					</tr>
+	                <tr>
+						<td>Quote Status:</td>
+						<td><input name="invoiceit_s__Status__c" id="invoiceit_s__Status__c" data-theme="c"/></td>
+					</tr>
+					<tr>
+						<td>Quote Total:</td>
+						<td><input name="invoiceit_s__Total__c" id="invoiceit_s__Total__c" data-theme="c"/></td>
+					</tr>
+	            </table>
+	         <button data-role="button" id="actionbtnquote">Action quote</button>
+	        </form>
+	    </div>
+	    <div data-role="footer">
+	        <h4>Force.com</h4>
+	    </div>
+	</div>
+
+</body>
+</html>
